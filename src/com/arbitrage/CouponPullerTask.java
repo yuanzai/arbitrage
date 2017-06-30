@@ -45,8 +45,10 @@ public class CouponPullerTask {
     private static final String ETH = "eth";
     private static final String XRP = "xrp";
     private static final String BTS = "bts";
+    public static final String FIXER_FX_URL = "http://api.fixer.io/latest?base=USD";
     private static final String JUBI_BASE_URL = "https://www.jubi.com/api/v1/ticker?coin=";
     private static final String POLONIEX_URL = "https://poloniex.com/public?command=returnTicker";
+
     private static final String LAST = "last";
 
     private static final Map<String, String> coinToApi = ImmutableMap.<String, String>builder()
@@ -64,7 +66,6 @@ public class CouponPullerTask {
             .put(XRP, .06)
             .put(BTS, .06)
             .build();
-
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     public static void main(String[] args) throws Exception {
@@ -72,23 +73,26 @@ public class CouponPullerTask {
     }
 
     private void handleData() throws Exception {
-        Map<String, Double> coinChinaPrice = getChinaPrices();
-        logger.debug("China coin price : {}",coinChinaPrice.toString());
+        Map<String, Double> chinaCoinPrice = getChinaPrices();
+        logger.debug("China coin price : {}",chinaCoinPrice.toString());
         //double cnyPrice = getCnyPrice();
         double rmb = getRmbPrice();
         Map<String, Double> usCoinPrice = getUsCoinPrice(rmb);
-        String diffResult = getDiffResult(coinChinaPrice, rmb, usCoinPrice);
+        String diffResult = getDiffResult(chinaCoinPrice, rmb, usCoinPrice);
         logger.debug("US coin price : {}", usCoinPrice.toString());
-        Map<String, Double> diffAnalysis = diffAnalysis(coinChinaPrice, usCoinPrice);
+        Map<String, Double> diffAnalysis = diffAnalysis(chinaCoinPrice, usCoinPrice);
         logger.debug("Percentage diff (china / us) : {}", diffAnalysis.toString());
         largestArbitrage(diffAnalysis);
 
         int minute = Calendar.getInstance().get(Calendar.MINUTE);
         if (minute == 10 || !diffResult.isEmpty()) {
-            //sendEmail(coinChinaPrice, usCoinPrice, diffResult);
+            //sendEmail(chinaCoinPrice, usCoinPrice, diffResult);
         }
     }
 
+    /**
+     * Returns a map of crypto -> china/us price
+     */
     private Map<String, Double> diffAnalysis(Map<String, Double> coinChinaPrice, Map<String, Double> usCoinPrice) {
         Map<String, Double> diffPercentage = new HashMap<>();
         for (String name : diff.keySet()) {
@@ -103,6 +107,9 @@ public class CouponPullerTask {
         return diffPercentage;
     }
 
+    /**
+     * Takes the largest china/us ratio with the smallest and finds the largest/smallest ratio
+     */
     private void largestArbitrage(Map<String, Double> diffAnalysis) {
         TreeMap<String, Double> sortedMap = diffAnalysis.entrySet().stream()
                 .sorted(Map.Entry.<String, Double>comparingByValue())
@@ -270,7 +277,7 @@ public class CouponPullerTask {
     double getRmbPrice() throws IOException {
         HttpClientBuilder builder = HttpClientBuilder.create();
         CloseableHttpClient exchangeRateHttpClient = builder.build();
-        HttpGet exchangeGet = new HttpGet("http://api.fixer.io/latest?base=USD");
+        HttpGet exchangeGet = new HttpGet(FIXER_FX_URL);
         exchangeGet.setHeader("accept", "*/*");
         CloseableHttpResponse exchangeResponse = exchangeRateHttpClient.execute(exchangeGet);
         HttpEntity exchangeEntity = exchangeResponse.getEntity();
