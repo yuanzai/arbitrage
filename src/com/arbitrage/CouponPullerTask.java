@@ -24,19 +24,15 @@ import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.utils.DateUtils;
-import org.apache.http.conn.util.DomainType;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import sun.misc.resources.Messages_pt_BR;
 
 public class CouponPullerTask {
     private static final Logger logger = LoggerFactory.getLogger(CouponPullerTask.class);
@@ -111,17 +107,12 @@ public class CouponPullerTask {
      * Takes the largest china/us ratio with the smallest and finds the largest/smallest ratio
      */
     private void largestArbitrage(Map<String, Double> diffAnalysis) {
-        TreeMap<String, Double> sortedMap = diffAnalysis.entrySet().stream()
-                .sorted(Map.Entry.<String, Double>comparingByValue())
-                .filter(entry -> entry.getValue() != 0d)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
-                (e1, e2) -> e1, TreeMap::new));
+        NavigableMap sortedMap = sortByValues(diffAnalysis);
         if (sortedMap.size() < 2) {
             return;
         }
         Map.Entry<String, Double> firstEntry = sortedMap.firstEntry();
         Map.Entry<String, Double> lastEntry = sortedMap.lastEntry();
-
         double firstValue = firstEntry.getValue();
         double lastValue = lastEntry.getValue();
         double arbitrage = lastValue / firstValue;
@@ -142,7 +133,6 @@ public class CouponPullerTask {
 
     private Map<String, Double> getUsCoinPrice(double rmb) throws IOException {
         HttpClientBuilder builder = HttpClientBuilder.create();
-        Map<String, Double> usCoinPrice = new HashMap<>();
         CloseableHttpClient httpClient = builder.build();
         HttpGet httpGet = new HttpGet(POLONIEX_URL);
         CloseableHttpResponse response = httpClient.execute(httpGet);
@@ -150,9 +140,12 @@ public class CouponPullerTask {
         String result = EntityUtils.toString(entity);
         response.close();
         httpClient.close();
+        return getUsCoinPriceFromJsonString(rmb, result);
+    }
 
+    private Map<String, Double> getUsCoinPriceFromJsonString(double rmb, String result) {
+        Map<String, Double> usCoinPrice = new HashMap<>();
         JSONObject jsonObject = new JSONObject(result);
-
         double btc = jsonObject.getJSONObject("USDT_BTC").getDouble(LAST);
         double ltc = jsonObject.getJSONObject("USDT_LTC").getDouble(LAST);
         double eth = jsonObject.getJSONObject("USDT_ETH").getDouble(LAST);
@@ -305,6 +298,24 @@ public class CouponPullerTask {
             (new Thread(new TaskRunnable())).start();
         }
 
+    }
+
+    public static <K, V extends Comparable<V>> NavigableMap<K, V>
+        sortByValues(final Map<K, V> map) {
+            Comparator<K> valueComparator =
+                new Comparator<K>() {
+                    public int compare(K k1, K k2) {
+                        int compare =
+                                map.get(k1).compareTo(map.get(k2));
+                        if (compare == 0)
+                            return 1;
+                        else
+                            return compare;
+                    }
+                };
+        NavigableMap<K, V> sortedByValues = new TreeMap<K, V>(valueComparator);
+        sortedByValues.putAll(map);
+        return sortedByValues;
     }
 }
 
