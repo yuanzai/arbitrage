@@ -4,24 +4,9 @@
 
 package com.arbitrage;
 
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
-import javax.mail.BodyPart;
-import javax.mail.Message;
-import javax.mail.MessagingException;
-import javax.mail.Multipart;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.AddressException;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeBodyPart;
-import javax.mail.internet.MimeMessage;
-import javax.mail.internet.MimeMultipart;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.http.HttpEntity;
@@ -35,19 +20,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class CouponPullerTask {
-    private static final Logger logger = LoggerFactory.getLogger(CouponPullerTask.class);
-    private static final String BTC = "btc";
-    private static final String LTC = "ltc";
-    private static final String ETH = "eth";
-    private static final String XRP = "xrp";
-    private static final String BTS = "bts";
+    private static final Logger logger = LoggerFactory.getLogger(ArbitrageAnalysis.class);
+    static final String BTC = "btc";
+    static final String LTC = "ltc";
+    static final String ETH = "eth";
+    static final String XRP = "xrp";
+    static final String BTS = "bts";
     public static final String FIXER_FX_URL = "http://api.fixer.io/latest?base=USD";
     private static final String JUBI_BASE_URL = "https://www.jubi.com/api/v1/ticker?coin=";
     private static final String POLONIEX_URL = "https://poloniex.com/public?command=returnTicker";
 
     private static final String LAST = "last";
 
-    private static final Map<String, String> coinToApi = ImmutableMap.<String, String>builder()
+    private static final Map<String, String> JBUI_COIN_TO_API = ImmutableMap.<String, String>builder()
             .put(BTC, JUBI_BASE_URL + "btc")
             .put(LTC, JUBI_BASE_URL + "ltc")
             .put(ETH, JUBI_BASE_URL + "eth")
@@ -55,20 +40,17 @@ public class CouponPullerTask {
             .put(BTS, JUBI_BASE_URL + "bts")
             .build();
 
-    private static final Map<String, Double> diff = ImmutableMap.<String, Double>builder()
+    private static final String OUTPUT_FOLDER = "/Users/junyuanlau/Dropbox/Arbitrage/";
+
+    static final Map<String, Double> diff = ImmutableMap.<String, Double>builder()
             .put(BTC, 300d)
             .put(LTC, 15d)
             .put(ETH, 9d)
             .put(XRP, .06)
             .put(BTS, .06)
             .build();
-    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    public static void main(String[] args) throws Exception {
-        scheduler.scheduleAtFixedRate(new TaskRunnable(), 0, 60, TimeUnit.SECONDS);
-    }
-
-    private void handleData() throws Exception {
+    void handleData() throws Exception {
         Map<String, Double> chinaCoinPrice = getChinaPrices();
         logger.debug("China coin price : {}",chinaCoinPrice.toString());
         //double cnyPrice = getCnyPrice();
@@ -78,7 +60,7 @@ public class CouponPullerTask {
         logger.debug("US coin price : {}", usCoinPrice.toString());
         Map<String, Double> diffAnalysis = diffAnalysis(chinaCoinPrice, usCoinPrice);
         logger.debug("Percentage diff (china / us) : {}", diffAnalysis.toString());
-        largestArbitrage(diffAnalysis);
+        appendRowToFile(OUTPUT_FOLDER + "data.csv", "");
 
         int minute = Calendar.getInstance().get(Calendar.MINUTE);
         if (minute == 10 || !diffResult.isEmpty()) {
@@ -103,20 +85,9 @@ public class CouponPullerTask {
         return diffPercentage;
     }
 
-    /**
-     * Takes the largest china/us ratio with the smallest and finds the largest/smallest ratio
-     */
-    private void largestArbitrage(Map<String, Double> diffAnalysis) {
-        NavigableMap sortedMap = sortByValues(diffAnalysis);
-        if (sortedMap.size() < 2) {
-            return;
-        }
-        Map.Entry<String, Double> firstEntry = sortedMap.firstEntry();
-        Map.Entry<String, Double> lastEntry = sortedMap.lastEntry();
-        double firstValue = firstEntry.getValue();
-        double lastValue = lastEntry.getValue();
-        double arbitrage = lastValue / firstValue;
-        logger.debug("Arbitrage {} - buy: {} sell: {}", arbitrage, firstEntry.getKey(), lastEntry.getKey());
+    private static String getCsvRow(Map<String, Double> diffAnalysis, Map<String, Double> coinChinaPrice, Map<String, Double> usCoinPrice) {
+        List<String> csvRow = new ArrayList<>();
+        return "";
     }
 
     private String getDiffResult(Map<String, Double> coinChinaPrice, double rmb, Map<String, Double> usCoinPrice) {
@@ -160,70 +131,6 @@ public class CouponPullerTask {
         return usCoinPrice;
     }
 
-    private void sendEmail(Map<String, Double> coinChinaPrice, Map<String, Double> usCoinPrice, String diffResult) {
-        StringBuilder currentInfo = new StringBuilder();
-        currentInfo.append("BTC: China-").append(coinChinaPrice.get(BTC)).append(" US-").append(usCoinPrice.get(BTC)).append("\n");
-        currentInfo.append("LTC: China-").append(coinChinaPrice.get(LTC)).append(" US-").append(usCoinPrice.get(LTC)).append("\n");
-        currentInfo.append("ETH: China-").append(coinChinaPrice.get(ETH)).append(" US-").append(usCoinPrice.get(ETH)).append("\n");
-        currentInfo.append("XRP: China-").append(coinChinaPrice.get(XRP)).append(" US-").append(usCoinPrice.get(XRP)).append("\n");
-        currentInfo.append("BTS: China-").append(coinChinaPrice.get(BTS)).append(" US-").append(usCoinPrice.get(BTS)).append("\n");
-
-        Properties props = System.getProperties();
-        props.put("mail.smtp.starttls.enable", true);
-        props.put("mail.smtp.host", "smtp.gmail.com");
-        props.put("mail.smtp.user", "bitcoininfoalarm");
-        props.put("mail.smtp.password", "makemoney!");
-        props.put("mail.smtp.port", "587");
-        props.put("mail.smtp.auth", true);
-
-        Session session = Session.getInstance(props, null);
-        MimeMessage message = new MimeMessage(session);
-
-        System.out.println("Port: " + session.getProperty("mail.smtp.port"));
-
-        // Create the email addresses involved
-        try {
-            InternetAddress from = new InternetAddress("bitcoininfoalarm");
-            message.setSubject("Close price alarm");
-            message.setFrom(from);
-            message.addRecipients(Message.RecipientType.TO, InternetAddress.parse("verafeng1129@163.com"));
-            message.addRecipients(Message.RecipientType.TO, InternetAddress.parse("bitcoininfoalarm@gmail.com"));
-
-            // Create a multi-part to combine the parts
-            Multipart multipart = new MimeMultipart("alternative");
-
-            // Create your text message part
-            BodyPart messageBodyPart = new MimeBodyPart();
-            messageBodyPart.setText("some text to send");
-
-            // Add the text part to the multipart
-            multipart.addBodyPart(messageBodyPart);
-
-            // Create the html part
-            messageBodyPart = new MimeBodyPart();
-            String htmlMessage = diffResult.isEmpty() ? currentInfo.toString() : diffResult;
-            messageBodyPart.setContent(htmlMessage, "text/html");
-
-
-            // Add html part to multi part
-            multipart.addBodyPart(messageBodyPart);
-
-            // Associate multi-part with message
-            message.setContent(multipart);
-
-            // Send message
-            Transport transport = session.getTransport("smtp");
-            transport.connect("smtp.gmail.com", "bitcoininfoalarm", "makemoney!");
-            transport.sendMessage(message, message.getAllRecipients());
-
-
-        } catch (AddressException e) {
-            logger.error("?? {}", e);
-        } catch (MessagingException e) {
-            logger.error("?? {}", e);
-        }
-    }
-
     Map<String, Double> getChinaPrices() throws IOException {
         HttpClientBuilder builder = HttpClientBuilder.create();
         CloseableHttpClient httpClient = builder.build();
@@ -232,14 +139,14 @@ public class CouponPullerTask {
 
         Map<String, Double> coinChinaPrice = new HashMap<>();
 
-        for (Map.Entry<String, String> entry : coinToApi.entrySet()) {
+        for (Map.Entry<String, String> entry : JBUI_COIN_TO_API.entrySet()) {
             HttpGet httpGet = new HttpGet(entry.getValue());
             httpGet.setHeader("accept", "*/*");
             CloseableHttpResponse response = httpClient.execute(httpGet);
             HttpEntity entity = response.getEntity();
             String result = EntityUtils.toString(entity);
-            JSONObject jsonObject2 = new JSONObject(result);
-            coinChinaPrice.put(entry.getKey(), jsonObject2.getDouble("buy"));
+            JSONObject jsonObject = new JSONObject(result);
+            coinChinaPrice.put(entry.getKey(), jsonObject.getDouble("buy"));
             response.close();
         }
         httpClient.close();
@@ -282,41 +189,11 @@ public class CouponPullerTask {
         return rates.getDouble("CNY");
     }
 
-    public static class TaskRunnable implements Runnable {
-
-        public void run() {
-            logger.debug("Run task");
-            CouponPullerTask task = new CouponPullerTask();
-            try {
-                task.handleData();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        public static void main(String args[]) {
-            (new Thread(new TaskRunnable())).start();
-        }
-
+    private static void appendRowToFile(String path, String row) throws IOException {
+        FileWriter fileWriter = new FileWriter(path, true);
+        fileWriter.append(row);
     }
 
-    public static <K, V extends Comparable<V>> NavigableMap<K, V>
-        sortByValues(final Map<K, V> map) {
-            Comparator<K> valueComparator =
-                new Comparator<K>() {
-                    public int compare(K k1, K k2) {
-                        int compare =
-                                map.get(k1).compareTo(map.get(k2));
-                        if (compare == 0)
-                            return 1;
-                        else
-                            return compare;
-                    }
-                };
-        NavigableMap<K, V> sortedByValues = new TreeMap<K, V>(valueComparator);
-        sortedByValues.putAll(map);
-        return sortedByValues;
-    }
 }
 
 
