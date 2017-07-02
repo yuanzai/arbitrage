@@ -1,12 +1,10 @@
 package com.arbitrage;
 
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.stream.StreamSupport;
-
-import static com.arbitrage.ArbitrageAnalysisResult.*;
 
 /**
  * Created by junyuanlau on 1/7/17.
@@ -27,23 +25,41 @@ public class ArbitrageAnalysis {
     private NavigableMap<String, Double> market1BuyMarket2Sell;
     private NavigableMap<String, Double> market2BuyMarket1Sell;
 
-    public ArbitrageAnalysis(String market1, Map<String, Double> marketBidPrices1, Map<String, Double> marketAskPrices1, String market2, Map<String, Double> marketBidPrices2, Map<String, Double> marketAskPrices2) {
+    public ArbitrageAnalysis(String market1,
+                             Map<String, Double> marketBidPrices1,
+                             Map<String, Double> marketAskPrices1,
+                             String market2,
+                             Map<String, Double> marketBidPrices2,
+                             Map<String, Double> marketAskPrices2) {
         this.market1 = market1;
         this.marketBidPrices1 = marketBidPrices1;
         this.marketAskPrices1 = marketAskPrices1;
         this.market2 = market2;
         this.marketBidPrices2 = marketBidPrices2;
         this.marketAskPrices2 = marketAskPrices2;
+        throw new UnsupportedOperationException("Not unit tested for bid ask yet");
+    }
+
+    public ArbitrageAnalysis(String market1,
+                             Map<String, Double> marketPrices1,
+                             String market2,
+                             Map<String, Double> marketPrices2) {
+        this.market1 = market1;
+        this.marketBidPrices1 = marketPrices1;
+        this.marketAskPrices1 = marketPrices1;
+        this.market2 = market2;
+        this.marketBidPrices2 = marketPrices2;
+        this.marketAskPrices2 = marketPrices2;
     }
 
     public ArbitrageAnalysisResult getResult(){
         this.market1BuyMarket2Sell = diffAnalysis(marketBidPrices2, marketAskPrices1);
-        this.market2BuyMarket1Sell = diffAnalysis(marketBidPrices1, marketAskPrices2);
+        this.market2BuyMarket1Sell = diffAnalysis(marketAskPrices2, marketBidPrices1);
 
-        Set<String> intersection = new HashSet<>(market1BuyMarket2Sell.keySet());
-        intersection.retainAll(market2BuyMarket1Sell.keySet());
+        Set<String> intersection = Sets.intersection(new HashSet<>(market1BuyMarket2Sell.keySet()), new HashSet<>(market2BuyMarket1Sell.keySet()));
 
         if (intersection.size() < 2) {
+            logger.debug("Less than 2 coin prices available from both markets");
             return new ArbitrageAnalysisResult(null, null, 0d);
         }
 
@@ -60,12 +76,12 @@ public class ArbitrageAnalysis {
         String market2BuyMarket1SellCoin;
         double arbitrage;
         if (market1BuyCheapArbitrageRatio > market2BuyCheapArbitrageRatio) {
-            market1BuyMarket2SellCoin = market1BuyFirstEntry.getKey();
-            market2BuyMarket1SellCoin = market2BuyLastEntry.getKey();
+            market1BuyMarket2SellCoin = market2BuyLastEntry.getKey();
+            market2BuyMarket1SellCoin = market1BuyFirstEntry.getKey();
             arbitrage = market1BuyCheapArbitrageRatio;
         } else {
-            market1BuyMarket2SellCoin = market1BuyFirstEntry.getKey();
-            market2BuyMarket1SellCoin = market2BuyLastEntry.getKey();
+            market1BuyMarket2SellCoin = market1BuyLastEntry.getKey();
+            market2BuyMarket1SellCoin = market2BuyFirstEntry.getKey();
             arbitrage = market2BuyCheapArbitrageRatio;
         }
         Trade trade1 = new Trade(market1, market1BuyMarket2SellCoin, market2BuyMarket1SellCoin, marketAskPrices1.get(market1BuyMarket2SellCoin), marketBidPrices1.get(market2BuyMarket1SellCoin));

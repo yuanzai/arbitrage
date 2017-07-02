@@ -1,5 +1,7 @@
 package com.arbitrage;
 
+import com.google.common.base.Joiner;
+
 /**
  * Created by junyuanlau on 1/7/17.
  */
@@ -26,5 +28,9 @@ public class ArbitrageAnalysisResult {
         return arbitrageReturn;
     }
 
+    @Override
+    public String toString() {
+        return Joiner.on(",").join(trade1.toCsvString(), trade2.toCsvString(), arbitrageReturn);
+    }
 }
 

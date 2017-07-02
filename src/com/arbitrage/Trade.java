@@ -1,5 +1,7 @@
 package com.arbitrage;
 
+import com.google.common.base.Joiner;
+
 /**
  * Created by junyuanlau on 1/7/17.
  */
@@ -36,5 +38,9 @@ public class Trade {
 
     public double getSellPrice() {
         return sellPrice;
+    }
+
+    public String toCsvString() {
+        return Joiner.on(",").join(market, buy, buyPrice, sell, sellPrice);
     }
 }

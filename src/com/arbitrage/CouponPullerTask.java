@@ -4,10 +4,15 @@
 
 package com.arbitrage;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.*;
 
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -42,6 +47,8 @@ public class CouponPullerTask {
 
     private static final String OUTPUT_FOLDER = "/Users/junyuanlau/Dropbox/Arbitrage/";
 
+    static final List<String> COINS = ImmutableList.of(BTC, LTC, ETH, XRP, BTS);
+
     static final Map<String, Double> diff = ImmutableMap.<String, Double>builder()
             .put(BTC, 300d)
             .put(LTC, 15d)
@@ -51,20 +58,25 @@ public class CouponPullerTask {
             .build();
 
     void handleData() throws Exception {
-        Map<String, Double> chinaCoinPrice = getChinaPrices();
-        logger.debug("China coin price : {}",chinaCoinPrice.toString());
-        //double cnyPrice = getCnyPrice();
+        Map<String, Double> chinaCoinPrices = getChinaPrices();
+        logger.debug("China coin price : {}",chinaCoinPrices.toString());
         double rmb = getRmbPrice();
-        Map<String, Double> usCoinPrice = getUsCoinPrice(rmb);
-        String diffResult = getDiffResult(chinaCoinPrice, rmb, usCoinPrice);
-        logger.debug("US coin price : {}", usCoinPrice.toString());
-        Map<String, Double> diffAnalysis = diffAnalysis(chinaCoinPrice, usCoinPrice);
+        Map<String, Double> usCoinPrices = getUsCoinPrice(rmb);
+        String diffResult = getDiffResult(chinaCoinPrices, rmb, usCoinPrices);
+        logger.debug("US coin price : {}", usCoinPrices.toString());
+        Map<String, Double> diffAnalysis = diffAnalysis(chinaCoinPrices, usCoinPrices);
         logger.debug("Percentage diff (china / us) : {}", diffAnalysis.toString());
-        appendRowToFile(OUTPUT_FOLDER + "data.csv", "");
+
+        ArbitrageAnalysis analysis = new ArbitrageAnalysis("CN", chinaCoinPrices, "US", usCoinPrices);
+        ArbitrageAnalysisResult result = analysis.getResult();
+        String csvRow = getCsvRow(result, chinaCoinPrices, usCoinPrices);
+
+        logger.debug(csvRow);
+        appendRowToFile("data.csv", csvRow);
 
         int minute = Calendar.getInstance().get(Calendar.MINUTE);
         if (minute == 10 || !diffResult.isEmpty()) {
-            //sendEmail(chinaCoinPrice, usCoinPrice, diffResult);
+            //sendEmail(chinaCoinPrices, usCoinPrices, diffResult);
         }
     }
 
@@ -73,7 +85,7 @@ public class CouponPullerTask {
      */
     private Map<String, Double> diffAnalysis(Map<String, Double> coinChinaPrice, Map<String, Double> usCoinPrice) {
         Map<String, Double> diffPercentage = new HashMap<>();
-        for (String name : diff.keySet()) {
+        for (String name : COINS) {
             Double china = coinChinaPrice.get(name);
             Double us = usCoinPrice.get(name);
             if (china != null && us != null) {
@@ -85,9 +97,48 @@ public class CouponPullerTask {
         return diffPercentage;
     }
 
-    private static String getCsvRow(Map<String, Double> diffAnalysis, Map<String, Double> coinChinaPrice, Map<String, Double> usCoinPrice) {
-        List<String> csvRow = new ArrayList<>();
-        return "";
+    private static String getCsvRow(ArbitrageAnalysisResult result, Map<String, Double> chinaCoinPrice, Map<String, Double> usCoinPrice) {
+        List<String> prices = new ArrayList<>();
+        for (String coin : COINS) {
+            Double cnPrice = chinaCoinPrice.get(coin);
+            Double usPrice = usCoinPrice.get(coin);
+            if (cnPrice != null) {
+                prices.add(cnPrice.toString());
+            } else {
+                prices.add("");
+            }
+            if (usPrice != null) {
+                prices.add(usPrice.toString());
+            } else {
+                prices.add("");
+            }
+        }
+        LocalDateTime dateTime = LocalDateTime.now(Clock.systemUTC());
+        return Joiner.on(",").join(dateTime, result, Joiner.on(",").join(prices));
+    }
+
+    private static String getCsvHeader() {
+        List<String> headers = new ArrayList<>();
+        headers.add("UTCDateTime");
+        headers.add("Market1");
+        headers.add("Buy1");
+        headers.add("BuyPrice1");
+        headers.add("Sell1");
+        headers.add("SellPrice1");
+
+        headers.add("Market2");
+        headers.add("Buy2");
+        headers.add("BuyPrice2");
+        headers.add("Sell2");
+        headers.add("SellPrice2");
+
+        headers.add("ArbitrageRatio");
+
+        for (String coin : COINS) {
+            headers.add(coin + "_CN");
+            headers.add(coin + "_US");
+        }
+        return Joiner.on(",").join(headers);
     }
 
     private String getDiffResult(Map<String, Double> coinChinaPrice, double rmb, Map<String, Double> usCoinPrice) {
@@ -190,8 +241,20 @@ public class CouponPullerTask {
     }
 
     private static void appendRowToFile(String path, String row) throws IOException {
+        File file = new File(path);
+        if (!file.exists()) {
+            logger.debug("Creating file with headers at {}", path);
+            FileWriter fileWriter = new FileWriter(path, true);
+            fileWriter.append(getCsvHeader());
+            fileWriter.flush();
+            fileWriter.close();
+        }
+        logger.debug("Append to {}", path);
         FileWriter fileWriter = new FileWriter(path, true);
-        fileWriter.append(row);
+        fileWriter.append(row + "\n");
+        fileWriter.flush();
+        fileWriter.close();
+
     }
 
 }
