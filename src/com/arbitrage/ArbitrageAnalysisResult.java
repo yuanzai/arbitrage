@@ -28,6 +28,14 @@ public class ArbitrageAnalysisResult {
         return arbitrageReturn;
     }
 
+    public boolean validate() {
+        boolean validateResult = true;
+        validateResult &= !trade1.getMarket().equals(trade2.getMarket());
+        validateResult &= trade1.getBuy().equals(trade2.getSell());
+        validateResult &= trade2.getBuy().equals(trade1.getSell());
+        return validateResult;
+    }
+
     @Override
     public String toString() {
         return Joiner.on(",").join(trade1.toCsvString(), trade2.toCsvString(), arbitrageReturn);

@@ -70,8 +70,11 @@ public class CouponPullerTask {
         ArbitrageAnalysis analysis = new ArbitrageAnalysis("CN", chinaCoinPrices, "US", usCoinPrices);
         ArbitrageAnalysisResult result = analysis.getResult();
         String csvRow = getCsvRow(result, chinaCoinPrices, usCoinPrices);
-
         logger.debug(csvRow);
+        if (!result.validate()) {
+            logger.error("Results cannot be validated. Not appending to data file");
+        }
+
         appendRowToFile("data.csv", csvRow);
 
         int minute = Calendar.getInstance().get(Calendar.MINUTE);
@@ -245,7 +248,7 @@ public class CouponPullerTask {
         if (!file.exists()) {
             logger.debug("Creating file with headers at {}", path);
             FileWriter fileWriter = new FileWriter(path, true);
-            fileWriter.append(getCsvHeader());
+            fileWriter.append(getCsvHeader() + "\n");
             fileWriter.flush();
             fileWriter.close();
         }

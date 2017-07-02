@@ -13,17 +13,11 @@ public class ArbitrageAnalysis {
     private static final Logger logger = LoggerFactory.getLogger(CouponPullerTask.class);
 
     private String market1;
-    private Map<String, Double> marketPrices1;
     private Map<String, Double> marketBidPrices1; // Sell at this price
     private Map<String, Double> marketAskPrices1; // Buy at this price
     private String market2;
-    private Map<String, Double> marketPrices2;
     private Map<String, Double> marketBidPrices2; // Sell at this price
     private Map<String, Double> marketAskPrices2; // Buy at this price
-    private Map<String, Double> diffAnalysis;
-
-    private NavigableMap<String, Double> market1BuyMarket2Sell;
-    private NavigableMap<String, Double> market2BuyMarket1Sell;
 
     public ArbitrageAnalysis(String market1,
                              Map<String, Double> marketBidPrices1,
@@ -53,9 +47,8 @@ public class ArbitrageAnalysis {
     }
 
     public ArbitrageAnalysisResult getResult(){
-        this.market1BuyMarket2Sell = diffAnalysis(marketBidPrices2, marketAskPrices1);
-        this.market2BuyMarket1Sell = diffAnalysis(marketAskPrices2, marketBidPrices1);
-
+        NavigableMap<String, Double> market1BuyMarket2Sell = diffAnalysis(marketBidPrices2, marketAskPrices1);
+        NavigableMap<String, Double> market2BuyMarket1Sell = diffAnalysis(marketAskPrices2, marketBidPrices1);
         Set<String> intersection = Sets.intersection(new HashSet<>(market1BuyMarket2Sell.keySet()), new HashSet<>(market2BuyMarket1Sell.keySet()));
 
         if (intersection.size() < 2) {
@@ -93,7 +86,6 @@ public class ArbitrageAnalysis {
         double firstValue = cheapEntry.getValue();
         double lastValue = expensiveEntry.getValue();
         return lastValue / firstValue;
-
     }
 
     private NavigableMap<String, Double> diffAnalysis(Map<String, Double> bidPrices, Map<String, Double> askPrices) {
