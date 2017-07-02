@@ -53,13 +53,14 @@ public class CouponPullerTask {
             .build();
 
     void handleData() throws Exception {
-        Map<String, Double> chinaCoinPrices = getChinaPrices();
+        Map<String, Double> chinaCoinPrices = getChinaPricesFromApi();
         logger.debug("China coin price : {}",chinaCoinPrices.toString());
         double rmb = getRmbPrice();
-        Map<String, Double> usCoinPrices = getUsCoinPrice(rmb);
-        String diffResult = getDiffResult(chinaCoinPrices, rmb, usCoinPrices);
+        Map<String, Double> usCoinPrices = getUsPricesFromApi(rmb);
         logger.debug("US coin price : {}", usCoinPrices.toString());
-        Map<String, Double> diffAnalysis = diffAnalysis(chinaCoinPrices, usCoinPrices);
+
+        String diffResult = getDiffResult(chinaCoinPrices, rmb, usCoinPrices);
+        Map<String, Double> diffAnalysis = ArbitrageAnalysis.diffAnalysis(chinaCoinPrices, usCoinPrices);
         logger.debug("Percentage diff (china / us) : {}", diffAnalysis.toString());
 
         ArbitrageAnalysis analysis = new ArbitrageAnalysis("CN", chinaCoinPrices, "US", usCoinPrices);
@@ -71,28 +72,10 @@ public class CouponPullerTask {
         }
 
         CsvOutput.appendRowToFile("data.csv", csvRow);
-
         int minute = Calendar.getInstance().get(Calendar.MINUTE);
         if (minute == 10 || !diffResult.isEmpty()) {
             //sendEmail(chinaCoinPrices, usCoinPrices, diffResult);
         }
-    }
-
-    /**
-     * Returns a map of crypto -> china/us price
-     */
-    private Map<String, Double> diffAnalysis(Map<String, Double> coinChinaPrice, Map<String, Double> usCoinPrice) {
-        Map<String, Double> diffPercentage = new HashMap<>();
-        for (String name : COINS) {
-            Double china = coinChinaPrice.get(name);
-            Double us = usCoinPrice.get(name);
-            if (china != null && us != null) {
-                diffPercentage.put(name, china / us);
-            } else {
-                diffPercentage.put(name, 0d);
-            }
-        }
-        return diffPercentage;
     }
 
     private String getDiffResult(Map<String, Double> coinChinaPrice, double rmb, Map<String, Double> usCoinPrice) {
@@ -107,7 +90,7 @@ public class CouponPullerTask {
         return sb.toString();
     }
 
-    private Map<String, Double> getUsCoinPrice(double rmb) throws IOException {
+    private Map<String, Double> getUsPricesFromApi(double rmb) throws IOException {
         HttpClientBuilder builder = HttpClientBuilder.create();
         CloseableHttpClient httpClient = builder.build();
         HttpGet httpGet = new HttpGet(POLONIEX_URL);
@@ -136,7 +119,7 @@ public class CouponPullerTask {
         return usCoinPrice;
     }
 
-    Map<String, Double> getChinaPrices() throws IOException {
+    Map<String, Double> getChinaPricesFromApi() throws IOException {
         HttpClientBuilder builder = HttpClientBuilder.create();
         CloseableHttpClient httpClient = builder.build();
         //http://api.btc38.com/v1/ticker.php?c=all&mk_type=cny

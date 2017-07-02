@@ -88,7 +88,7 @@ public class ArbitrageAnalysis {
         return lastValue / firstValue;
     }
 
-    private NavigableMap<String, Double> diffAnalysis(Map<String, Double> bidPrices, Map<String, Double> askPrices) {
+    static NavigableMap<String, Double> diffAnalysis(Map<String, Double> bidPrices, Map<String, Double> askPrices) {
         Set<String> coins = new HashSet<>(bidPrices.keySet());
         coins.addAll(askPrices.keySet());
         Map<String, Double> diffPercentage = new HashMap<>();

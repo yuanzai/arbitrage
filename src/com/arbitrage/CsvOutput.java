@@ -22,7 +22,6 @@ public class CsvOutput {
 
     private CsvOutput(){}
 
-
     static void appendRowToFile(String path, String row) throws IOException {
         File file = new File(path);
         if (!file.exists()) {

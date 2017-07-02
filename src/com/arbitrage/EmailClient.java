@@ -14,6 +14,8 @@ import java.util.Properties;
 public class EmailClient {
     private static final Logger logger = LoggerFactory.getLogger(EmailClient.class);
 
+    private EmailClient() {}
+
     private static void sendEmail(Map<String, Double> coinChinaPrice, Map<String, Double> usCoinPrice, String diffResult) {
         StringBuilder currentInfo = new StringBuilder();
         currentInfo.append("BTC: China-").append(coinChinaPrice.get(CouponPullerTask.BTC)).append(" US-").append(usCoinPrice.get(CouponPullerTask.BTC)).append("\n");
@@ -58,7 +60,6 @@ public class EmailClient {
             String htmlMessage = diffResult.isEmpty() ? currentInfo.toString() : diffResult;
             messageBodyPart.setContent(htmlMessage, "text/html");
 
-
             // Add html part to multi part
             multipart.addBodyPart(messageBodyPart);
 
@@ -69,8 +70,6 @@ public class EmailClient {
             Transport transport = session.getTransport("smtp");
             transport.connect("smtp.gmail.com", "bitcoininfoalarm", "makemoney!");
             transport.sendMessage(message, message.getAllRecipients());
-
-
         } catch (MessagingException e) {
             logger.error("?? {}", e);
         }
