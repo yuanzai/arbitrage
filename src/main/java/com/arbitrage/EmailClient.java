@@ -24,7 +24,11 @@ public class EmailClient {
         currentInfo.append("XRP: China-").append(coinChinaPrice.get(CouponPullerTask.XRP)).append(" US-").append(usCoinPrice.get(CouponPullerTask.XRP)).append("\n");
         currentInfo.append("BTS: China-").append(coinChinaPrice.get(CouponPullerTask.BTS)).append(" US-").append(usCoinPrice.get(CouponPullerTask.BTS)).append("\n");
 
+
+
         Properties props = System.getProperties();
+
+
         props.put("mail.smtp.starttls.enable", true);
         props.put("mail.smtp.host", "smtp.gmail.com");
         props.put("mail.smtp.user", "bitcoininfoalarm");
