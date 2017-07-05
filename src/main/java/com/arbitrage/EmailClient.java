@@ -5,6 +5,10 @@ import org.slf4j.LoggerFactory;
 
 import javax.mail.*;
 import javax.mail.internet.*;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -13,41 +17,40 @@ import java.util.Properties;
  */
 public class EmailClient {
     private static final Logger logger = LoggerFactory.getLogger(EmailClient.class);
+    public static final String EMAIL_PROPERTIES = "email.properties";
 
     private EmailClient() {}
 
-    private static void sendEmail(Map<String, Double> coinChinaPrice, Map<String, Double> usCoinPrice, String diffResult) {
+    private static String emailBodyPrices(Map<String, Double> coinChinaPrice, Map<String, Double> usCoinPrice, String diffResult) {
         StringBuilder currentInfo = new StringBuilder();
         currentInfo.append("BTC: China-").append(coinChinaPrice.get(CouponPullerTask.BTC)).append(" US-").append(usCoinPrice.get(CouponPullerTask.BTC)).append("\n");
         currentInfo.append("LTC: China-").append(coinChinaPrice.get(CouponPullerTask.LTC)).append(" US-").append(usCoinPrice.get(CouponPullerTask.LTC)).append("\n");
         currentInfo.append("ETH: China-").append(coinChinaPrice.get(CouponPullerTask.ETH)).append(" US-").append(usCoinPrice.get(CouponPullerTask.ETH)).append("\n");
         currentInfo.append("XRP: China-").append(coinChinaPrice.get(CouponPullerTask.XRP)).append(" US-").append(usCoinPrice.get(CouponPullerTask.XRP)).append("\n");
         currentInfo.append("BTS: China-").append(coinChinaPrice.get(CouponPullerTask.BTS)).append(" US-").append(usCoinPrice.get(CouponPullerTask.BTS)).append("\n");
+        return currentInfo.toString();
+    }
 
+    private static void sendEmail(String emailBody, InternetAddress[] recipients) throws IOException {
+        Properties props =  new Properties();
+        props.load(new FileInputStream(EMAIL_PROPERTIES));
 
-
-        Properties props = System.getProperties();
-
-
-        props.put("mail.smtp.starttls.enable", true);
-        props.put("mail.smtp.host", "smtp.gmail.com");
-        props.put("mail.smtp.user", "bitcoininfoalarm");
-        props.put("mail.smtp.password", "makemoney!");
-        props.put("mail.smtp.port", "587");
-        props.put("mail.smtp.auth", true);
+        String host = props.getProperty("mail.smtp.host");
+        String user = props.getProperty("mail.smtp.user");
+        String password = props.getProperty("mail.smtp.password");
+        String port = props.getProperty("mail.smtp.port");
 
         Session session = Session.getInstance(props, null);
         MimeMessage message = new MimeMessage(session);
 
-        System.out.println("Port: " + session.getProperty("mail.smtp.port"));
+        logger.debug("Host: {} Port: {} User: {}", host, port, user);
 
         // Create the email addresses involved
         try {
-            InternetAddress from = new InternetAddress("bitcoininfoalarm");
+            InternetAddress from = new InternetAddress(user);
             message.setSubject("Close price alarm");
             message.setFrom(from);
-            message.addRecipients(Message.RecipientType.TO, InternetAddress.parse("verafeng1129@163.com"));
-            message.addRecipients(Message.RecipientType.TO, InternetAddress.parse("bitcoininfoalarm@gmail.com"));
+            message.addRecipients(Message.RecipientType.TO, recipients);
 
             // Create a multi-part to combine the parts
             Multipart multipart = new MimeMultipart("alternative");
@@ -61,7 +64,7 @@ public class EmailClient {
 
             // Create the html part
             messageBodyPart = new MimeBodyPart();
-            String htmlMessage = diffResult.isEmpty() ? currentInfo.toString() : diffResult;
+            String htmlMessage = emailBody;
             messageBodyPart.setContent(htmlMessage, "text/html");
 
             // Add html part to multi part
@@ -72,10 +75,13 @@ public class EmailClient {
 
             // Send message
             Transport transport = session.getTransport("smtp");
-            transport.connect("smtp.gmail.com", "bitcoininfoalarm", "makemoney!");
+            transport.connect(host, user, password);
             transport.sendMessage(message, message.getAllRecipients());
+            logger.debug("Email successfully sent to {}", recipients.toString());
         } catch (MessagingException e) {
             logger.error("?? {}", e);
         }
     }
+
+
 }

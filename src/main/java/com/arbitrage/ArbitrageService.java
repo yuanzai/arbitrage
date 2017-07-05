@@ -3,15 +3,15 @@ package com.arbitrage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * Created by junyuanlau on 1/7/17.
  */
 public class ArbitrageService {
     private static final Logger logger = LoggerFactory.getLogger(ArbitrageService.class);
+
+    private final ConcurrentLinkedQueue<String> emailMessageQueue = 
 
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 

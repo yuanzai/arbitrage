@@ -27,20 +27,6 @@ public class CouponPullerTask {
     static final String XRP = "xrp";
     static final String BTS = "bts";
     public static final String FIXER_FX_URL = "http://api.fixer.io/latest?base=USD";
-    private static final String JUBI_BASE_URL = "https://www.jubi.com/api/v1/ticker?coin=";
-    private static final String POLONIEX_URL = "https://poloniex.com/public?command=returnTicker";
-
-    private static final String LAST = "last";
-
-    private static final Map<String, String> JBUI_COIN_TO_API = ImmutableMap.<String, String>builder()
-            .put(BTC, JUBI_BASE_URL + "btc")
-            .put(LTC, JUBI_BASE_URL + "ltc")
-            .put(ETH, JUBI_BASE_URL + "eth")
-            .put(XRP, JUBI_BASE_URL + "xrp")
-            .put(BTS, JUBI_BASE_URL + "bts")
-            .build();
-
-    private static final String OUTPUT_FOLDER = "/Users/junyuanlau/Dropbox/Arbitrage/";
 
     static final List<String> COINS = ImmutableList.of(BTC, LTC, ETH, XRP, BTS);
 
@@ -53,11 +39,11 @@ public class CouponPullerTask {
             .build();
 
     void handleData() throws Exception {
-        Map<String, Double> chinaCoinPrices = getChinaPricesFromApi();
-        logger.debug("China coin price : {}",chinaCoinPrices.toString());
+        ExchangeApi cnApi = new JubiExchangeApi();
+        Map<String, Double> chinaCoinPrices = cnApi.getLastPrices();
         double rmb = getRmbPrice();
-        Map<String, Double> usCoinPrices = getUsPricesFromApi(rmb);
-        logger.debug("US coin price : {}", usCoinPrices.toString());
+        ExchangeApi usApi = new PoloniexExchangeApi(rmb);
+        Map<String, Double> usCoinPrices = usApi.getLastPrices();
 
         String diffResult = getDiffResult(chinaCoinPrices, rmb, usCoinPrices);
         Map<String, Double> diffAnalysis = ArbitrageAnalysis.diffAnalysis(chinaCoinPrices, usCoinPrices);
@@ -88,78 +74,6 @@ public class CouponPullerTask {
             }
         }
         return sb.toString();
-    }
-
-    private Map<String, Double> getUsPricesFromApi(double rmb) throws IOException {
-        HttpClientBuilder builder = HttpClientBuilder.create();
-        CloseableHttpClient httpClient = builder.build();
-        HttpGet httpGet = new HttpGet(POLONIEX_URL);
-        CloseableHttpResponse response = httpClient.execute(httpGet);
-        HttpEntity entity = response.getEntity();
-        String result = EntityUtils.toString(entity);
-        response.close();
-        httpClient.close();
-        return getUsCoinPriceFromJsonString(rmb, result);
-    }
-
-    private Map<String, Double> getUsCoinPriceFromJsonString(double rmb, String result) {
-        Map<String, Double> usCoinPrice = new HashMap<>();
-        JSONObject jsonObject = new JSONObject(result);
-        double btc = jsonObject.getJSONObject("USDT_BTC").getDouble(LAST);
-        double ltc = jsonObject.getJSONObject("USDT_LTC").getDouble(LAST);
-        double eth = jsonObject.getJSONObject("USDT_ETH").getDouble(LAST);
-        double xrp = jsonObject.getJSONObject("USDT_XRP").getDouble(LAST);
-        double bts = jsonObject.getJSONObject("BTC_BTS").getDouble(LAST) * btc;
-
-        usCoinPrice.put(BTC, btc*rmb);
-        usCoinPrice.put(LTC, ltc*rmb);
-        usCoinPrice.put(ETH, eth*rmb);
-        usCoinPrice.put(XRP, xrp*rmb);
-        usCoinPrice.put(BTS, bts*rmb);
-        return usCoinPrice;
-    }
-
-    Map<String, Double> getChinaPricesFromApi() throws IOException {
-        HttpClientBuilder builder = HttpClientBuilder.create();
-        CloseableHttpClient httpClient = builder.build();
-        //http://api.btc38.com/v1/ticker.php?c=all&mk_type=cny
-        //https://www.jubi.com/api/v1/ticker?coin=btc
-
-        Map<String, Double> coinChinaPrice = new HashMap<>();
-
-        for (Map.Entry<String, String> entry : JBUI_COIN_TO_API.entrySet()) {
-            HttpGet httpGet = new HttpGet(entry.getValue());
-            httpGet.setHeader("accept", "*/*");
-            CloseableHttpResponse response = httpClient.execute(httpGet);
-            HttpEntity entity = response.getEntity();
-            String result = EntityUtils.toString(entity);
-            JSONObject jsonObject = new JSONObject(result);
-            coinChinaPrice.put(entry.getKey(), jsonObject.getDouble("buy"));
-            response.close();
-        }
-        httpClient.close();
-        return coinChinaPrice;
-    }
-
-    double getCnyPrice() {
-        HttpClientBuilder builder = HttpClientBuilder.create();
-        CloseableHttpClient testClient = builder.build();
-        CloseableHttpResponse testResponse = null;
-        HttpGet testGet = new HttpGet("http://api.btc38.com/v1/ticker.php?c=all&mk_type=cny");
-        testGet.setHeader("accept", "*/*");
-        JSONObject cnyObject = null;
-        try {
-            testResponse = testClient.execute(testGet);
-            HttpEntity testEntity = testResponse.getEntity();
-            String testResult = EntityUtils.toString(testEntity);
-            cnyObject = new JSONObject(testResult);
-            testResponse.close();
-            testClient.close();
-
-        } catch (IOException e1) {
-            e1.printStackTrace();
-        }
-        return cnyObject.getDouble("somestring");
     }
 
     double getRmbPrice() throws IOException {
