@@ -31,7 +31,6 @@ public class ArbitrageAnalysis {
         this.market2 = market2;
         this.marketBidPrices2 = marketBidPrices2;
         this.marketAskPrices2 = marketAskPrices2;
-        throw new UnsupportedOperationException("Not unit tested for bid ask yet");
     }
 
     public ArbitrageAnalysis(String market1,

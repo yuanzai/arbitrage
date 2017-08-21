@@ -11,11 +11,10 @@ import java.util.concurrent.*;
 public class ArbitrageService {
     private static final Logger logger = LoggerFactory.getLogger(ArbitrageService.class);
 
-    private final ConcurrentLinkedQueue<String> emailMessageQueue = 
-
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     public static void main(String[] args) throws Exception {
+        logger.debug("Service started");
 
         scheduler.scheduleAtFixedRate(new TaskRunnable(), 0, 60, TimeUnit.SECONDS);
     }

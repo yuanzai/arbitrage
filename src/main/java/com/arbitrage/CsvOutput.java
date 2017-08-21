@@ -38,7 +38,7 @@ public class CsvOutput {
         fileWriter.close();
     }
 
-    private static String getCsvHeader() {
+    static String getCsvHeader() {
         List<String> headers = new ArrayList<>();
         headers.add("UTCDateTime");
         headers.add("Market1");

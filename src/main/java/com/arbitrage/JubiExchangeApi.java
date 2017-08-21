@@ -1,62 +1,97 @@
 package com.arbitrage;
 
-import com.google.common.collect.ImmutableMap;
-import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.util.EntityUtils;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Created by junyuanlau on 4/7/17.
  */
-public class JubiExchangeApi implements ExchangeApi {
+public class JubiExchangeApi extends BaseExchangeApi {
     private static final String JUBI_BASE_URL = "https://www.jubi.com/api/v1/ticker?coin=";
+    private static final String JUBI_DEPTH_URL = "http://www.jubi.com/api/v1/depth?coin=";
+    private static final String LAST = "last";
+    private static final String ASK = "buy";
+    private static final String BID = "sell";
 
-    private static final Map<String, String> JUBI_COIN_TO_API = ImmutableMap.<String, String>builder()
-            .put(CouponPullerTask.BTC, JUBI_BASE_URL + "btc")
-            .put(CouponPullerTask.LTC, JUBI_BASE_URL + "ltc")
-            .put(CouponPullerTask.ETH, JUBI_BASE_URL + "eth")
-            .put(CouponPullerTask.XRP, JUBI_BASE_URL + "xrp")
-            .put(CouponPullerTask.BTS, JUBI_BASE_URL + "bts")
-            .build();
+    private final Map<String, String> responses = new HashMap<>();
+    private final Map<String, String> depthResponses = new HashMap<>();
 
-    @Override
-    public Map<String, Double> getLastPrices() throws IOException {
-        HttpClientBuilder builder = HttpClientBuilder.create();
-        CloseableHttpClient httpClient = builder.build();
+    public JubiExchangeApi() throws IOException {
         //http://api.btc38.com/v1/ticker.php?c=all&mk_type=cny
         //https://www.jubi.com/api/v1/ticker?coin=btc
 
-        Map<String, Double> coinChinaPrice = new HashMap<>();
-
-        for (Map.Entry<String, String> entry : JUBI_COIN_TO_API.entrySet()) {
-            HttpGet httpGet = new HttpGet(entry.getValue());
-            httpGet.setHeader("accept", "*/*");
-            CloseableHttpResponse response = httpClient.execute(httpGet);
-            HttpEntity entity = response.getEntity();
-            String result = EntityUtils.toString(entity);
-            JSONObject jsonObject = new JSONObject(result);
-            coinChinaPrice.put(entry.getKey(), jsonObject.getDouble("buy"));
-            response.close();
+        CloseableHttpClient httpClient = HttpClientBuilder.create().build();
+        for (String coin : CouponPullerTask.COINS) {
+            responses.put(coin, ExchangeApiUtils.httpGetResponse(httpClient, JUBI_BASE_URL + coin.toLowerCase()));
+            depthResponses.put(coin, ExchangeApiUtils.httpGetResponse(httpClient, JUBI_DEPTH_URL + coin.toLowerCase()));
         }
-        httpClient.close();
+    }
+
+    @Override
+    Map<String, Double> getUnadjustedLastPrices() {
+        return getPrice(LAST);
+    }
+
+    @Override
+    Map<String, Double> getUnadjustedBidPrices() {
+        return getPrice(BID);
+    }
+
+    @Override
+    Map<String, Double> getUnadjustedAskPrices() {
+        return getPrice(ASK);
+    }
+
+    @Override
+    double getBtcPrice() {
+        return getPrice(LAST).get(CouponPullerTask.BTC);
+    }
+
+    public Map<String, Double> getPrice(String type) {
+        Map<String, Double> coinChinaPrice = new HashMap<>();
+        for (String coin : CouponPullerTask.COINS) {
+            JSONObject jsonObject = new JSONObject(responses.get(coin));
+            coinChinaPrice.put(coin, jsonObject.getDouble(type));
+        }
         return coinChinaPrice;
     }
 
     @Override
-    public Map<String, Double> getBidPrices() {
-        return null;
+    public ListMultimap<String, Pair<Double, Double>> getAskDepth() {
+        return getDepth("asks", true);
     }
 
     @Override
-    public Map<String, Double> getAskPrices() {
-        return null;
+    public ListMultimap<String, Pair<Double, Double>> getBidDepth() {
+        return getDepth("bids", false);
+    }
+    public ListMultimap<String, Pair<Double, Double>> getDepth(String type, boolean sortAsc) {
+        ListMultimap<String, Pair<Double, Double>> result = ArrayListMultimap.create();
+        for (String coin : CouponPullerTask.COINS) {
+            JSONObject jsonObject = new JSONObject(depthResponses.get(coin));
+            JSONArray array = jsonObject.getJSONArray(type);
+            List<Pair<Double, Double>> list = new ArrayList<>();
+            for (int i = 0; i < array.length(); i++) {
+                JSONArray element = array.getJSONArray(i);
+                list.add(Pair.of(element.getDouble(0) * getFxRate(), element.getDouble(1)));
+            }
+            list.sort((a,b) -> {
+                int compare = a.getLeft().compareTo(b.getLeft());
+                return sortAsc ? compare : -compare;
+            });
+            result.putAll(coin, list);
+        }
+        return result;
     }
 }

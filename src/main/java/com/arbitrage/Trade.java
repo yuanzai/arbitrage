@@ -43,4 +43,8 @@ public class Trade {
     public String toCsvString() {
         return Joiner.on(",").join(market, buy, buyPrice, sell, sellPrice);
     }
+
+    public String toLogString() {
+        return String.format("Exchange %s\nBuy %s @ %f\nSell %s @ %f", market, buy, buyPrice, sell, sellPrice);
+    }
 }

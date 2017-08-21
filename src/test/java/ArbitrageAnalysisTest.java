@@ -119,4 +119,95 @@ public class ArbitrageAnalysisTest {
         assertThat(trade2.getSellPrice(), is(10000d));
     }
 
+    @Test
+    public void testTwoCoinArbritageWithBidAsk() {
+        // Overpriced Market 1
+        Map<String, Double> pricesHigherBid = ImmutableMap.<String, Double>builder()
+                .put("coin1", 99d)
+                .put("coin2", 990d) // sell
+                .build();
+
+        Map<String, Double> pricesHigherAsk = ImmutableMap.<String, Double>builder()
+                .put("coin1", 101d) // buy
+                .put("coin2", 1010d)
+                .build();
+
+
+        Map<String, Double> pricesLowerBid = ImmutableMap.<String, Double>builder()
+                .put("coin1", 109d) // sell
+                .put("coin2", 1040d)
+                .build();
+
+        Map<String, Double> pricesLowerAsk = ImmutableMap.<String, Double>builder()
+                .put("coin1", 111d)
+                .put("coin2", 1060d) // buy
+                .build();
+
+
+        ArbitrageAnalysis analysis = new ArbitrageAnalysis("market1", pricesHigherBid, pricesHigherAsk, "market2", pricesLowerBid, pricesLowerAsk);
+        ArbitrageAnalysisResult result = analysis.getResult();
+        assertThat(result, notNullValue());
+        Trade trade1 = result.getTrade1();
+        Trade trade2 = result.getTrade2();
+        assertThat(trade1, notNullValue());
+        assertThat(trade2, notNullValue());
+        assertThat(trade1.getMarket(), is("market1"));
+        assertThat(trade1.getBuy(), is("coin1"));
+        assertThat(trade1.getSell(), is("coin2"));
+        assertThat(trade1.getBuyPrice(), is(101d));
+        assertThat(trade1.getSellPrice(), is(990d));
+
+        assertThat(trade2.getMarket(), is("market2"));
+        assertThat(trade2.getBuy(), is("coin2"));
+        assertThat(trade2.getSell(), is("coin1"));
+        assertThat(trade2.getBuyPrice(), is(1060d));
+        assertThat(trade2.getSellPrice(), is(109d));
+    }
+
+    @Test
+    public void testThreeCoinArbritageWithBidAsk() {
+        Map<String, Double> pricesHigherBid = ImmutableMap.<String, Double>builder()
+                .put("coin1", 99d)
+                .put("coin2", 990d)
+                .put("coin3", 9900d) // sell
+                .build();
+
+        Map<String, Double> pricesHigherAsk = ImmutableMap.<String, Double>builder()
+                .put("coin1", 101d) // buy
+                .put("coin2", 1010d)
+                .put("coin3", 10100d)
+                .build();
+
+        Map<String, Double> pricesLowerBid = ImmutableMap.<String, Double>builder()
+                .put("coin1", 109d) // sell
+                .put("coin2", 1040d)
+                .put("coin3", 10009d)
+                .build();
+
+        Map<String, Double> pricesLowerAsk = ImmutableMap.<String, Double>builder()
+                .put("coin1", 111d)
+                .put("coin2", 1060d)
+                .put("coin3", 10011d) // buy
+                .build();
+
+        ArbitrageAnalysis analysis = new ArbitrageAnalysis("market1", pricesHigherBid, pricesHigherAsk, "market2", pricesLowerBid, pricesLowerAsk);
+        ArbitrageAnalysisResult result = analysis.getResult();
+        assertThat(result, notNullValue());
+        Trade trade1 = result.getTrade1();
+        Trade trade2 = result.getTrade2();
+        assertThat(trade1, notNullValue());
+        assertThat(trade2, notNullValue());
+        assertThat(trade1.getMarket(), is("market1"));
+        assertThat(trade1.getBuy(), is("coin1"));
+        assertThat(trade1.getSell(), is("coin3"));
+        assertThat(trade1.getBuyPrice(), is(101d));
+        assertThat(trade1.getSellPrice(), is(9900d));
+
+        assertThat(trade2.getMarket(), is("market2"));
+        assertThat(trade2.getBuy(), is("coin3"));
+        assertThat(trade2.getSell(), is("coin1"));
+        assertThat(trade2.getBuyPrice(), is(10011d));
+        assertThat(trade2.getSellPrice(), is(109d));
+    }
+
 }
