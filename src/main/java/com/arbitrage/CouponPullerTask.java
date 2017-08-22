@@ -11,9 +11,7 @@ import java.util.stream.Collectors;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ListMultimap;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -30,43 +28,42 @@ public class CouponPullerTask {
     static final String LTC = "ltc";
     static final String ETH = "eth";
     static final String XRP = "xrp";
-    static final String BTS = "bts";
     public static final String FIXER_FX_URL = "http://api.fixer.io/latest?base=USD";
-    static final List<String> COINS = ImmutableList.of(BTC, LTC, ETH, XRP, BTS);
+    static final List<String> COINS = ImmutableList.of(BTC, LTC, ETH, XRP);
 
     static final Map<String, Double> diff = ImmutableMap.<String, Double>builder()
             .put(BTC, 300d)
             .put(LTC, 15d)
             .put(ETH, 9d)
             .put(XRP, .06)
-            .put(BTS, .06)
             .build();
 
     private StringBuilder logString = new StringBuilder("\n");
+    private static final String ARBITRAGE_ANALYSIS_HEADER = "-------- ARBITRAGE ANALYSIS (BID/ASK) ----------";
+    private static final String ARBITRAGE_TRADE_HEADER    = "---------- ARBITRAGE TRADE (BID/ASK) -----------";
+    private static final String PAIR_TRADE_HEADER         = "----------- PAIR TRADE (WITH DEPTH) ------------";
+    private static final String LAST_PRICE_HEADER         = "--------------- LAST PRICE COMP ----------------";
+
 
     void handleData() throws Exception {
-        ExchangeApi cnApi = new JubiExchangeApi();
+        JubiExchangeApi cnApi = new JubiExchangeApi();
         Map<String, Double> chinaCoinPrices = cnApi.getLastPrices();
         double rmb = getRmbPrice();
-        ExchangeApi usApi = new PoloniexExchangeApi(rmb);
+        PoloniexExchangeApi usApi = new PoloniexExchangeApi(rmb);
         Map<String, Double> usCoinPrices = usApi.getLastPrices();
 
-        ExchangeApi hkApi = new BitfinexExchangeApi(rmb);
+        BitfinexExchangeApi hkApi = new BitfinexExchangeApi(rmb);
         Map<String, Double> hkCoinPrices = hkApi.getLastPrices();
 
-
+        logString.append(LAST_PRICE_HEADER).append("\n");
         diffAnalysis(chinaCoinPrices, usCoinPrices, "CN", "US");
         diffAnalysis(chinaCoinPrices, hkCoinPrices, "CN", "HK");
-
         diffAnalysis(cnApi.getLastBtcPrices(), usApi.getLastBtcPrices(), "CN BTC", "US BTC");
 
+        longShortLog(usApi, cnApi, "XRP", "BTC");
+        longShortCashLog(usApi, cnApi, "XRP", "ETH", 5000);
+        shortXrpLongBtcLog(usApi, cnApi);
         //ArbitrageAnalysis analysis = new ArbitrageAnalysis("CN", chinaCoinPrices, "US", usCoinPrices);
-
-        logger.debug(cnApi.getBidDepthAdjustedPrices(10000d).toString());
-        logger.debug(cnApi.getAskDepthAdjustedPrices(10000d).toString());
-
-        logger.debug(usApi.getBidDepthAdjustedPrices(10000d).toString());
-        logger.debug(usApi.getAskDepthAdjustedPrices(10000d).toString());
 
         ArbitrageAnalysis analysis = new ArbitrageAnalysis("CN", cnApi.getAskPrices(), cnApi.getBidPrices(), "US", usApi.getAskPrices(), usApi.getBidPrices());
         ArbitrageAnalysisResult result = analysis.getResult();
@@ -81,12 +78,56 @@ public class CouponPullerTask {
         logger.debug(logString.toString());
     }
 
-    private void depthLog(ListMultimap<String, Pair<Double, Double>> bids, ListMultimap<String, Pair<Double, Double>> asks) {
+    private void longShortLog(Exchange usApi, Exchange cnApi, String longCnCoin, String shortCnCoin) {
+        logString.append(PAIR_TRADE_HEADER).append("\n");
+        Positions positions = new Positions();
+        double buyXrp = positions.buyAmount(cnApi, longCnCoin, "CNY", 10000d);
+        logString.append(String.format("Buy %f %s for 10000 CNY @ %f\n", buyXrp, longCnCoin, 10000/buyXrp));
 
+        double sellBtc = positions.sellAmount(cnApi, shortCnCoin, "CNY", 10000d);
+        logString.append(String.format("Sell %f %s for 10000 CNY @ %f\n", sellBtc, shortCnCoin, 10000/sellBtc));
+
+        double getBtc = positions.sellUnits(usApi, longCnCoin, shortCnCoin, buyXrp);
+        logString.append(String.format("Sell %f %s for %f %s @ %f\n", buyXrp, longCnCoin, getBtc, shortCnCoin, buyXrp/getBtc));
+
+        logString.append(positions.getPositions()).append("\n");
+    }
+
+    private void longShortCashLog(Exchange usApi, Exchange cnApi, String longCnCoin, String shortCnCoin, double ccy) {
+        logString.append(PAIR_TRADE_HEADER).append("\n");
+        Positions positions = new Positions();
+        double buyXrp = positions.buyAmount(cnApi, longCnCoin, "CNY", ccy);
+        logString.append(String.format("Buy %f %s for %f CNY @ %f\n", buyXrp, longCnCoin, ccy, ccy/buyXrp));
+
+        double sellBtc = positions.sellAmount(cnApi, shortCnCoin, "CNY", ccy);
+        logString.append(String.format("Sell %f %s for %f CNY @ %f\n", sellBtc, shortCnCoin, ccy, ccy/sellBtc));
+
+        double sellXrp = positions.sellUnits(usApi, longCnCoin, "CNY", buyXrp);
+        logString.append(String.format("Sell %f %s for %f CNY @ %f\n", buyXrp, longCnCoin, sellXrp, sellXrp/buyXrp));
+
+        double buyBtc = positions.buyUnits(usApi, shortCnCoin, "CNY", sellBtc);
+        logString.append(String.format("Buy %f %s for %f CNY @ %f\n", sellBtc, shortCnCoin, buyBtc, buyBtc/sellBtc));
+
+        logString.append(positions.getPositions()).append("\n");
+    }
+
+    private void shortXrpLongBtcLog(Exchange usApi, Exchange cnApi) {
+        logString.append(PAIR_TRADE_HEADER).append("\n");
+        Positions positions = new Positions();
+        double sellXrp = positions.sellAmount(cnApi, "XRP", "CNY", 10000d);
+        logString.append(String.format("Sell %f XRP for 10000 CNY @ %f\n", sellXrp, 10000/sellXrp));
+
+        double buyBtc = positions.buyAmount(cnApi, "BTC", "CNY", 10000d);
+        logString.append(String.format("Buy %f BTC for 10000 CNY @ %f\n", buyBtc, 10000/buyBtc));
+
+        double getBtc = positions.buyUnits(usApi, "XRP", "BTC", sellXrp);
+        logString.append(String.format("Buy %f XRP for %f BTC @ %f\n", sellXrp, getBtc, sellXrp/getBtc));
+
+        logString.append(positions.getPositions()).append("\n");
     }
 
     private void tradeLog(ArbitrageAnalysisResult result) {
-        logString.append("---------------------------\n");
+        logString.append(ARBITRAGE_ANALYSIS_HEADER).append("\n");
         logString.append(result.getTrade1().toLogString()).append("\n");
         logString.append(result.getTrade2().toLogString()).append("\n");
     }
@@ -97,7 +138,7 @@ public class CouponPullerTask {
         double hedgeBuyAmount = buyUnitsCoin * trade2.getSellPrice();
         double hedgeSellAmount = sellUnitsCoin * trade2.getBuyPrice();
         double profit = hedgeBuyAmount - hedgeSellAmount;
-        logString.append("---------------------------\n");
+        logString.append(ARBITRAGE_TRADE_HEADER).append("\n");
         logString.append("Trade value: ").append(amount).append("\n")
                 .append(String.format("Buy %.2f %s | ", buyUnitsCoin, trade1.getBuy()))
                 .append(String.format("Hedge %s %.2f", trade2.getSell(), hedgeBuyAmount))

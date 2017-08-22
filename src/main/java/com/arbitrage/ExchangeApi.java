@@ -32,4 +32,8 @@ interface ExchangeApi {
     Map<String, Double> getAskDepthAdjustedPrices(double amount);
     Map<String, Double> getBidDepthAdjustedPrices(double amount);
 
+    ListMultimap<Pair<String, String>, Pair<Double, Double>> getPairAskDepth();
+    ListMultimap<Pair<String, String>, Pair<Double, Double>> getPairBidDepth();
+
+
 }

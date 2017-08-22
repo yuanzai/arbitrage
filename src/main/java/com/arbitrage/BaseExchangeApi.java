@@ -1,10 +1,7 @@
 package com.arbitrage;
 
-import com.google.common.collect.ListMultimap;
 import org.apache.commons.lang3.tuple.Pair;
 
-import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -12,7 +9,7 @@ import java.util.stream.Collectors;
 /**
  * Created by junyuanlau on 20/8/17.
  */
-public abstract class BaseExchangeApi implements ExchangeApi{
+public abstract class BaseExchangeApi implements ExchangeApi, Exchange{
 
     private final double fxRate;
     public BaseExchangeApi(double fxRate) {
@@ -67,35 +64,37 @@ public abstract class BaseExchangeApi implements ExchangeApi{
         return fxRate;
     }
 
-    public Map<String, Double> getDepthAdjustedPrices(double amount, ListMultimap<String, Pair<Double, Double>> map) {
-        Map<String, Double> result = new HashMap<>();
-        for (String coin : map.keySet()) {
-            List<Pair<Double, Double>> list = map.get(coin);
-            double units = 0;
-            double remainAmount = amount;
-            for (Pair<Double, Double> pair : list) {
-                double pairAmount = pair.getLeft() * pair.getRight();
-                if (pairAmount < remainAmount) {
-                    remainAmount -= pairAmount;
-                    units += pair.getRight();
-                } else {
-                    units += remainAmount / pair.getLeft();
-                    remainAmount = 0;
-                    break;
-                }
-            }
-            result.put(coin, amount / units);
-        }
-        return result;
-    }
-
     @Override
     public Map<String, Double> getAskDepthAdjustedPrices(double amount) {
-        return getDepthAdjustedPrices(amount, getAskDepth());
+        return ExchangeApiUtils.getDepthAdjustedPrices(amount, getAskDepth());
     }
 
     @Override
     public Map<String, Double> getBidDepthAdjustedPrices(double amount) {
-        return getDepthAdjustedPrices(amount, getBidDepth());
+        return ExchangeApiUtils.getDepthAdjustedPrices(amount, getBidDepth());
+    }
+
+    @Override
+    public double buyAmount(String buy, String buyWith, double buyWithAmount) {
+        List<Pair<Double, Double>> list = getPairAskDepth().get(Pair.of(buyWith, buy));
+        return ExchangeApiUtils.getUnitsForAmount(buyWithAmount, list);
+    }
+
+    @Override
+    public double buyUnits(String buy, String buyWith, double buyUnits) {
+        List<Pair<Double, Double>> list = getPairAskDepth().get(Pair.of(buyWith, buy));
+        return ExchangeApiUtils.getAmountForUnits(buyUnits, list);
+    }
+
+    @Override
+    public double sellAmount(String sell, String sellFor, double sellForAmount) {
+        List<Pair<Double, Double>> list = getPairBidDepth().get(Pair.of(sellFor, sell));
+        return ExchangeApiUtils.getUnitsForAmount(sellForAmount, list);
+    }
+
+    @Override
+    public double sellUnits(String sell, String sellFor, double sellUnits) {
+        List<Pair<Double, Double>> list = getPairBidDepth().get(Pair.of(sellFor, sell));
+        return ExchangeApiUtils.getAmountForUnits(sellUnits, list);
     }
 }

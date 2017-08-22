@@ -1,7 +1,10 @@
 package com.arbitrage;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ListMultimap;
+import com.google.errorprone.annotations.Immutable;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -11,10 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Created by junyuanlau on 4/7/17.
@@ -23,14 +23,25 @@ public class PoloniexExchangeApi extends BaseExchangeApi {
     private static final Logger logger = LoggerFactory.getLogger(PoloniexExchangeApi.class);
 
     private static final String POLONIEX_URL = "https://poloniex.com/public?command=returnTicker";
-    private static final String POLONIEX_DEPTH_URL = "https://poloniex.com/public?command=returnOrderBook&currencyPair=all&depth=10";
-
+    private static final String POLONIEX_DEPTH_URL = "https://poloniex.com/public?command=returnOrderBook&currencyPair=all&depth=20";
 
     static final String LAST = "last";
     static final String BID = "highestBid";
     static final String ASK = "lowestAsk";
+
+    static final Map<Pair<String, String>, String> PAIRS = ImmutableMap.<Pair<String, String>, String>builder()
+            .put(Pair.of("BTC", "ETH"), "BTC_ETH")
+            .put(Pair.of("BTC", "LTC"), "BTC_LTC")
+            .put(Pair.of("BTC", "XRP"), "BTC_XRP")
+            .put(Pair.of("USD", "BTC"), "USDT_BTC")
+            .put(Pair.of("USD", "ETH"), "USDT_ETH")
+            .put(Pair.of("USD", "LTC"), "USDT_LTC")
+            .put(Pair.of("USD", "XRP"), "USDT_XRP")
+            .build();
+
     private final String jsonResponse;
     private final String depthJsonResponse;
+
 
     public PoloniexExchangeApi(double fxRate) throws IOException {
         super(fxRate);
@@ -91,13 +102,11 @@ public class PoloniexExchangeApi extends BaseExchangeApi {
         double ltc = jsonObject.getJSONObject("USDT_LTC").getDouble(type);
         double eth = jsonObject.getJSONObject("USDT_ETH").getDouble(type);
         double xrp = jsonObject.getJSONObject("USDT_XRP").getDouble(type);
-        double bts = jsonObject.getJSONObject("BTC_BTS").getDouble(type) * btc;
 
         usCoinPrice.put(CouponPullerTask.BTC, btc);
         usCoinPrice.put(CouponPullerTask.LTC, ltc);
         usCoinPrice.put(CouponPullerTask.ETH, eth);
         usCoinPrice.put(CouponPullerTask.XRP, xrp);
-        usCoinPrice.put(CouponPullerTask.BTS, bts);
         return usCoinPrice;
     }
 
@@ -120,9 +129,6 @@ public class PoloniexExchangeApi extends BaseExchangeApi {
             JSONObject jsonObject = new JSONObject(depthJsonResponse);
 
             for (String coin : CouponPullerTask.COINS) {
-                if (CouponPullerTask.BTS.equals(coin)) {
-                    continue;
-                }
                 JSONArray array = jsonObject.getJSONObject("USDT_" + coin.toUpperCase()).getJSONArray(type);
                 List<Pair<Double, Double>> list = new ArrayList<>();
                 for (int i = 0; i < array.length(); i++) {
@@ -136,6 +142,42 @@ public class PoloniexExchangeApi extends BaseExchangeApi {
                 result.putAll(coin, list);
             }
         return result;
+    }
+
+    @Override
+    public ListMultimap<Pair<String, String>, Pair<Double, Double>> getPairBidDepth() {
+        return getPairDepth("bids", false);
+    }
+
+    @Override
+    public ListMultimap<Pair<String, String>, Pair<Double, Double>> getPairAskDepth() {
+        return getPairDepth("asks", true);
+    }
+
+    public ListMultimap<Pair<String, String>, Pair<Double, Double>> getPairDepth(String type, boolean sortAsc) {
+        ListMultimap<Pair<String, String>, Pair<Double, Double>> result = ArrayListMultimap.create();
+        JSONObject jsonObject = new JSONObject(depthJsonResponse);
+        for (Pair<String, String> pair : PAIRS.keySet()) {
+            JSONArray array = jsonObject.getJSONObject(PAIRS.get(pair)).getJSONArray(type);
+            result.putAll(pair, getPairList(sortAsc, array, 1));
+            if ("USD".equals(pair.getLeft())) {
+                result.putAll(Pair.of("CNY", pair.getRight()), getPairList(sortAsc, array, getFxRate()));
+            }
+        }
+        return result;
+    }
+
+    private List<Pair<Double, Double>> getPairList(boolean sortAsc, JSONArray array, double rate) {
+        List<Pair<Double, Double>> list = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            JSONArray element = array.getJSONArray(i);
+            list.add(Pair.of(element.getDouble(0) * rate, element.getDouble(1)));
+        }
+        list.sort((a, b) -> {
+            int compare = a.getLeft().compareTo(b.getLeft());
+            return sortAsc ? compare : -compare;
+        });
+        return list;
     }
 
 }

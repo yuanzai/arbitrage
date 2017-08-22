@@ -1,6 +1,7 @@
 package com.arbitrage;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ListMultimap;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -23,6 +24,12 @@ public class JubiExchangeApi extends BaseExchangeApi {
     private static final String LAST = "last";
     private static final String ASK = "buy";
     private static final String BID = "sell";
+    static final Map<Pair<String, String>, String> PAIRS = ImmutableMap.<Pair<String, String>, String>builder()
+            .put(Pair.of("CNY", "BTC"), "btc")
+            .put(Pair.of("CNY", "ETH"), "eth")
+            .put(Pair.of("CNY", "LTC"), "ltc")
+            .put(Pair.of("CNY", "XRP"), "xrp")
+            .build();
 
     private final Map<String, String> responses = new HashMap<>();
     private final Map<String, String> depthResponses = new HashMap<>();
@@ -76,6 +83,9 @@ public class JubiExchangeApi extends BaseExchangeApi {
     public ListMultimap<String, Pair<Double, Double>> getBidDepth() {
         return getDepth("bids", false);
     }
+
+
+
     public ListMultimap<String, Pair<Double, Double>> getDepth(String type, boolean sortAsc) {
         ListMultimap<String, Pair<Double, Double>> result = ArrayListMultimap.create();
         for (String coin : CouponPullerTask.COINS) {
@@ -91,6 +101,33 @@ public class JubiExchangeApi extends BaseExchangeApi {
                 return sortAsc ? compare : -compare;
             });
             result.putAll(coin, list);
+        }
+        return result;
+    }
+
+    public ListMultimap<Pair<String, String>, Pair<Double, Double>> getPairBidDepth() {
+        return getPairDepth("bids", false);
+    }
+
+    public ListMultimap<Pair<String, String>, Pair<Double, Double>> getPairAskDepth() {
+        return getPairDepth("asks", true);
+    }
+
+    public ListMultimap<Pair<String, String>, Pair<Double, Double>> getPairDepth(String type, boolean sortAsc) {
+        ListMultimap<Pair<String, String>, Pair<Double, Double>> result = ArrayListMultimap.create();
+        for (Pair<String, String> pair : PAIRS.keySet()) {
+            JSONObject jsonObject = new JSONObject(depthResponses.get(PAIRS.get(pair)));
+            JSONArray array = jsonObject.getJSONArray(type);
+            List<Pair<Double, Double>> list = new ArrayList<>();
+            for (int i = 0; i < array.length(); i++) {
+                JSONArray element = array.getJSONArray(i);
+                list.add(Pair.of(element.getDouble(0) * getFxRate(), element.getDouble(1)));
+            }
+            list.sort((a,b) -> {
+                int compare = a.getLeft().compareTo(b.getLeft());
+                return sortAsc ? compare : -compare;
+            });
+            result.putAll(pair, list);
         }
         return result;
     }

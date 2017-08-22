@@ -83,4 +83,14 @@ public class BitfinexExchangeApi extends BaseExchangeApi {
     public ListMultimap<String, Pair<Double, Double>> getBidDepth() {
         return null;
     }
+
+    @Override
+    public ListMultimap<Pair<String, String>, Pair<Double, Double>> getPairAskDepth() {
+        return null;
+    }
+
+    @Override
+    public ListMultimap<Pair<String, String>, Pair<Double, Double>> getPairBidDepth() {
+        return null;
+    }
 }

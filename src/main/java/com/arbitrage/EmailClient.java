@@ -27,7 +27,6 @@ public class EmailClient {
         currentInfo.append("LTC: China-").append(coinChinaPrice.get(CouponPullerTask.LTC)).append(" US-").append(usCoinPrice.get(CouponPullerTask.LTC)).append("\n");
         currentInfo.append("ETH: China-").append(coinChinaPrice.get(CouponPullerTask.ETH)).append(" US-").append(usCoinPrice.get(CouponPullerTask.ETH)).append("\n");
         currentInfo.append("XRP: China-").append(coinChinaPrice.get(CouponPullerTask.XRP)).append(" US-").append(usCoinPrice.get(CouponPullerTask.XRP)).append("\n");
-        currentInfo.append("BTS: China-").append(coinChinaPrice.get(CouponPullerTask.BTS)).append(" US-").append(usCoinPrice.get(CouponPullerTask.BTS)).append("\n");
         return currentInfo.toString();
     }
 
